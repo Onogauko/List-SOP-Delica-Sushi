@@ -14,41 +14,33 @@ const supabase = createClient(
 
 const CATEGORIES = ['All', 'Delica', 'Sushi', 'Bakery', 'Work Instruction', 'Others'];
 
-// --- KOMPONEN PDF VIEWER (Simulasi Internal) ---
+// --- KOMPONEN PDF VIEWER ---
 const InternalPdfViewer = ({ sop, onBack, isBookmarked, toggleBookmark }) => {
+  if (!sop) return <div>Loading...</div>;
+
   return (
-    <div className="flex flex-col h-full bg-gray-200 rounded-xl overflow-hidden shadow-inner border border-gray-300">
-      <div className="bg-white border-b px-4 py-3 flex items-center justify-between z-10 shadow-sm shrink-0">
-        <button 
-          onClick={onBack} 
-          className="flex items-center text-gray-600 hover:text-blue-600 font-medium transition-colors"
-        >
-          <ArrowLeft size={20} className="mr-2" />
-          <span className="hidden sm:inline">Kembali</span>
-        </button>
-        
-        <div className="font-bold text-gray-800 truncate px-4 flex-1 text-center">
+    <div className="flex flex-col h-full bg-gray-200 rounded-xl overflow-hidden">
+      
+      <div className="bg-white p-3 flex justify-between items-center border-b">
+        <button onClick={onBack}>⬅ Kembali</button>
+
+        <div className="font-bold">
           {sop.code || sop.sop_code} - {sop.title}
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-3">
-          <button 
-            onClick={toggleBookmark} 
-            className={`p-2 rounded-lg transition-colors ${isBookmarked ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-            title={isBookmarked ? "Hapus dari Bookmark" : "Tambah ke Bookmark"}
-          >
-            <Bookmark size={20} fill={isBookmarked ? "currentColor" : "none"} />
-          </button>
-        </div>
+        <button onClick={toggleBookmark}>
+          {isBookmarked ? "★" : "☆"}
+        </button>
       </div>
 
-      <div className="flex-1 bg-gray-100">
+      <div className="flex-1">
         <iframe
           src={sop.pdf_url}
-          title={sop.title}
-          className="w-full h-full border-0"
+          className="w-full h-full"
+          title="PDF Viewer"
         />
       </div>
+
     </div>
   );
 };
@@ -157,7 +149,7 @@ export default function App() {
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email Address</label>
                 <div className="mt-1 relative">
                   <UserCircle className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                  <input id="email" name="email" type="email" required placeholder="jentawijayazebua@gmail.com" defaultValue="jentawijayazebua@gmail.com" className="appearance-none block w-full px-10 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                  <input id="email" name="email" type="email" required placeholder="admin@company.com" defaultValue="admin@company.com" className="appearance-none block w-full px-10 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
                 </div>
               </div>
               <div>
