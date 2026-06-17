@@ -32,7 +32,7 @@
 
     const CATEGORIES = ['All', 'Delica', 'Sushi', 'Bakery', 'Work Instruction', 'Others'];
 
-    // --- ADMIN EMAILS (Daftar email yang punya akses admin) ---
+    // --- ADMIN EMAILS ---
     const ADMIN_EMAILS = [
       "jentawijayazebua@gmail.com"
     ];
@@ -115,6 +115,18 @@
         Eye: React.createElement(React.Fragment, null,
           React.createElement("path", { d: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" }),
           React.createElement("circle", { cx: "12", cy: "12", r: "3" })
+        ),
+        Plus: React.createElement(React.Fragment, null,
+          React.createElement("line", { x1: "12", x2: "12", y1: "5", y2: "19" }),
+          React.createElement("line", { x1: "5", x2: "19", y1: "12", y2: "12" })
+        ),
+        Minus: React.createElement(React.Fragment, null,
+          React.createElement("line", { x1: "5", x2: "19", y1: "12", y2: "12" })
+        ),
+        Layers: React.createElement(React.Fragment, null,
+          React.createElement("polygon", { points: "12 2 2 7 12 12 22 7 12 2" }),
+          React.createElement("polyline", { points: "2 17 12 22 22 17" }),
+          React.createElement("polyline", { points: "2 12 12 17 22 12" })
         )
       };
       return React.createElement(
@@ -209,6 +221,15 @@
       
       const fileInputRef = useRef(null);
 
+      // --- STATE BATCH UPLOAD ---
+      const [sopItems, setSopItems] = useState([
+        { id: Date.now(), code: '', title: '', category: 'Delica', file: null }
+      ]);
+      const [isUploading, setIsUploading] = useState(false);
+      const [uploadProgress, setUploadProgress] = useState(0);
+      const [uploadResults, setUploadResults] = useState([]);
+      const [showBatchForm, setShowBatchForm] = useState(false);
+
       useEffect(() => {
         supabaseClient.auth.getSession().then(({ data: { session } }) => {
           setSession(session);
@@ -272,7 +293,7 @@
         }
       };
 
-      // --- SAVE SOP FUNCTION ---
+      // --- SAVE SINGLE SOP FUNCTION ---
       const saveSop = async () => {
         if (!uploadFile) {
           alert('Silakan pilih file PDF terlebih dahulu');
@@ -305,10 +326,74 @@
           }
 
           alert('SOP berhasil ditambahkan!');
-          resetForm();
+          resetSingleForm();
           fetchSops();
         } catch (err) {
           alert('Error: ' + err.message);
+        }
+      };
+
+      // --- SAVE BATCH SOP FUNCTION ---
+      const saveBatchSops = async () => {
+        const invalidItems = sopItems.filter(item => !item.code.trim() || !item.title.trim() || !item.file);
+        if (invalidItems.length > 0) {
+          alert(`Ada ${invalidItems.length} item yang belum lengkap. Pastikan semua SOP Code, Title, dan File PDF terisi.`);
+          return;
+        }
+
+        setIsUploading(true);
+        setUploadProgress(0);
+        setUploadResults([]);
+
+        let successCount = 0;
+        let failCount = 0;
+        const results = [];
+
+        for (let i = 0; i < sopItems.length; i++) {
+          const item = sopItems[i];
+          try {
+            const pdfUrl = await uploadPdf(item.file);
+            if (!pdfUrl) {
+              failCount++;
+              results.push({ title: item.title, status: 'Gagal', error: 'Upload PDF gagal' });
+              continue;
+            }
+
+            const { error } = await supabaseClient
+              .from('sop_documents')
+              .insert([
+                {
+                  code: item.code,
+                  title: item.title,
+                  category: item.category,
+                  pdf_url: pdfUrl
+                }
+              ]);
+
+            if (error) {
+              failCount++;
+              results.push({ title: item.title, status: 'Gagal', error: error.message });
+            } else {
+              successCount++;
+              results.push({ title: item.title, status: 'Berhasil' });
+            }
+          } catch (err) {
+            failCount++;
+            results.push({ title: item.title, status: 'Gagal', error: err.message });
+          }
+
+          setUploadProgress(Math.round(((i + 1) / sopItems.length) * 100));
+          setUploadResults([...results]);
+        }
+
+        setIsUploading(false);
+        
+        if (successCount > 0) {
+          alert(`Upload selesai! ${successCount} berhasil, ${failCount} gagal.`);
+          resetBatchForm();
+          fetchSops();
+        } else {
+          alert(`Upload gagal semua! ${failCount} gagal.`);
         }
       };
 
@@ -334,7 +419,7 @@
           }
 
           alert('SOP berhasil diupdate!');
-          resetForm();
+          resetSingleForm();
           fetchSops();
         } catch (err) {
           alert('Error: ' + err.message);
@@ -370,10 +455,11 @@
         setTitle(sop.title);
         setCategory(sop.category);
         setShowAdmin(true);
+        setShowBatchForm(false);
       };
 
-      // --- RESET FORM ---
-      const resetForm = () => {
+      // --- RESET SINGLE FORM ---
+      const resetSingleForm = () => {
         setEditingSop(null);
         setSopCode('');
         setTitle('');
@@ -382,6 +468,41 @@
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
+      };
+
+      // --- BATCH FORM HANDLERS ---
+      const resetBatchForm = () => {
+        setSopItems([
+          { id: Date.now(), code: '', title: '', category: 'Delica', file: null }
+        ]);
+        setUploadProgress(0);
+        setUploadResults([]);
+        setIsUploading(false);
+        setShowBatchForm(false);
+      };
+
+      const addSopItem = () => {
+        setSopItems([...sopItems, { id: Date.now(), code: '', title: '', category: 'Delica', file: null }]);
+      };
+
+      const removeSopItem = (id) => {
+        if (sopItems.length <= 1) {
+          alert('Minimal harus ada 1 item');
+          return;
+        }
+        setSopItems(sopItems.filter(item => item.id !== id));
+      };
+
+      const updateSopItem = (id, field, value) => {
+        setSopItems(sopItems.map(item => 
+          item.id === id ? { ...item, [field]: value } : item
+        ));
+      };
+
+      const handleFileChange = (id, file) => {
+        setSopItems(sopItems.map(item => 
+          item.id === id ? { ...item, file: file } : item
+        ));
       };
 
       // --- TOGGLE BOOKMARK ---
@@ -405,12 +526,10 @@
         await supabaseClient.auth.signOut();
       };
 
-      // --- HANDLE OPEN SOP ---
       const handleOpenSop = (sop) => {
         setSelectedSop(sop);
       };
 
-      // --- CEK APAKAH USER ADALAH ADMIN ---
       const isAdmin = session?.user?.email ? ADMIN_EMAILS.includes(session.user.email) : false;
 
       const filteredSops = useMemo(() => {
@@ -615,7 +734,6 @@
                 )
               )
             ),
-            // --- ADMIN MENU (HANYA UNTUK ADMIN) ---
             isAdmin && React.createElement(
               "nav",
               { className: "px-3 space-y-1 mt-6 border-t border-gray-200 pt-4" },
@@ -627,7 +745,13 @@
               React.createElement(
                 "button",
                 {
-                  onClick: () => { setShowAdmin(!showAdmin); setIsSidebarOpen(false); setSelectedSop(null); resetForm(); },
+                  onClick: () => { 
+                    setShowAdmin(!showAdmin); 
+                    setIsSidebarOpen(false); 
+                    setSelectedSop(null); 
+                    resetSingleForm(); 
+                    resetBatchForm();
+                  },
                   className: `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${showAdmin ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
                 },
                 React.createElement(Icon, { name: "Shield", className: "mr-3", size: 18 }),
@@ -758,7 +882,33 @@
                   "Kelola dokumen SOP secara terpusat"
                 )
               ),
+
+              // --- TABS: SINGLE UPLOAD vs BATCH UPLOAD ---
               React.createElement(
+                "div",
+                { className: "flex gap-2 mb-4 border-b border-gray-200" },
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => { setShowBatchForm(false); resetBatchForm(); },
+                    className: `px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${!showBatchForm ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`
+                  },
+                  React.createElement(Icon, { name: "Upload", size: 16, className: "inline mr-2" }),
+                  "Upload Single"
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => { setShowBatchForm(true); resetSingleForm(); },
+                    className: `px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${showBatchForm ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`
+                  },
+                  React.createElement(Icon, { name: "Layers", size: 16, className: "inline mr-2" }),
+                  "Upload Multiple"
+                )
+              ),
+
+              // --- SINGLE UPLOAD FORM ---
+              !showBatchForm && React.createElement(
                 "div",
                 { className: "bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6" },
                 React.createElement(
@@ -855,13 +1005,194 @@
                   editingSop && React.createElement(
                     "button",
                     {
-                      onClick: resetForm,
+                      onClick: resetSingleForm,
                       className: "px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 font-medium rounded-lg transition-colors"
                     },
                     "Batal"
                   )
                 )
               ),
+
+              // --- BATCH UPLOAD FORM ---
+              showBatchForm && React.createElement(
+                "div",
+                { className: "bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6" },
+                React.createElement(
+                  "div",
+                  { className: "flex items-center justify-between mb-4" },
+                  React.createElement(
+                    "h3",
+                    { className: "text-lg font-semibold text-gray-800 flex items-center" },
+                    React.createElement(Icon, { name: "Layers", size: 20, className: "mr-2 text-blue-600" }),
+                    "Upload Multiple SOP",
+                    React.createElement(
+                      "span",
+                      { className: "ml-2 text-sm font-normal text-gray-500" },
+                      `(${sopItems.length} item)`
+                    )
+                  ),
+                  !isUploading && React.createElement(
+                    "button",
+                    {
+                      onClick: addSopItem,
+                      className: "flex items-center px-3 py-1.5 text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                    },
+                    React.createElement(Icon, { name: "Plus", size: 16, className: "mr-1" }),
+                    "Tambah Baris"
+                  )
+                ),
+
+                // --- Batch Items ---
+                React.createElement(
+                  "div",
+                  { className: "space-y-3 max-h-96 overflow-y-auto" },
+                  sopItems.map((item, index) => 
+                    React.createElement(
+                      "div",
+                      { key: item.id, className: "flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200 items-end" },
+                      React.createElement(
+                        "div",
+                        { className: "flex-1 min-w-[120px]" },
+                        React.createElement(
+                          "label",
+                          { className: "block text-xs font-medium text-gray-600 mb-1" },
+                          `#${index + 1} Code`
+                        ),
+                        React.createElement("input", {
+                          placeholder: "SOP-001",
+                          className: "w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+                          value: item.code,
+                          onChange: (e) => updateSopItem(item.id, 'code', e.target.value),
+                          disabled: isUploading
+                        })
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "flex-1 min-w-[150px]" },
+                        React.createElement(
+                          "label",
+                          { className: "block text-xs font-medium text-gray-600 mb-1" },
+                          "Title"
+                        ),
+                        React.createElement("input", {
+                          placeholder: "Judul SOP",
+                          className: "w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+                          value: item.title,
+                          onChange: (e) => updateSopItem(item.id, 'title', e.target.value),
+                          disabled: isUploading
+                        })
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "w-[130px]" },
+                        React.createElement(
+                          "label",
+                          { className: "block text-xs font-medium text-gray-600 mb-1" },
+                          "Category"
+                        ),
+                        React.createElement(
+                          "select",
+                          {
+                            className: "w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+                            value: item.category,
+                            onChange: (e) => updateSopItem(item.id, 'category', e.target.value),
+                            disabled: isUploading
+                          },
+                          React.createElement("option", { value: "Delica" }, "Delica"),
+                          React.createElement("option", { value: "Sushi" }, "Sushi"),
+                          React.createElement("option", { value: "Bakery" }, "Bakery"),
+                          React.createElement("option", { value: "Work Instruction" }, "Work Instruction"),
+                          React.createElement("option", { value: "Others" }, "Others")
+                        )
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "flex-1 min-w-[150px]" },
+                        React.createElement(
+                          "label",
+                          { className: "block text-xs font-medium text-gray-600 mb-1" },
+                          "File PDF"
+                        ),
+                        React.createElement("input", {
+                          type: "file",
+                          accept: ".pdf",
+                          className: "w-full text-sm text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100",
+                          onChange: (e) => handleFileChange(item.id, e.target.files[0]),
+                          disabled: isUploading
+                        })
+                      ),
+                      React.createElement(
+                        "button",
+                        {
+                          onClick: () => removeSopItem(item.id),
+                          className: "p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors",
+                          disabled: isUploading || sopItems.length <= 1,
+                          title: "Hapus baris"
+                        },
+                        React.createElement(Icon, { name: "X", size: 18 })
+                      )
+                    )
+                  )
+                ),
+
+                // --- Upload Progress ---
+                isUploading && React.createElement(
+                  "div",
+                  { className: "mt-4" },
+                  React.createElement(
+                    "div",
+                    { className: "flex items-center justify-between text-sm mb-1" },
+                    React.createElement("span", { className: "text-gray-600" }, "Uploading..."),
+                    React.createElement("span", { className: "font-medium text-blue-600" }, `${uploadProgress}%`)
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "w-full bg-gray-200 rounded-full h-2.5" },
+                    React.createElement("div", {
+                      className: "bg-blue-600 h-2.5 rounded-full transition-all duration-300",
+                      style: { width: `${uploadProgress}%` }
+                    })
+                  )
+                ),
+
+                // --- Upload Results ---
+                uploadResults.length > 0 && React.createElement(
+                  "div",
+                  { className: "mt-4 max-h-32 overflow-y-auto" },
+                  uploadResults.map((result, idx) => 
+                    React.createElement(
+                      "div",
+                      { key: idx, className: `text-sm py-1 px-2 rounded ${result.status === 'Berhasil' ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}` },
+                      `${result.title}: ${result.status}${result.error ? ' - ' + result.error : ''}`
+                    )
+                  )
+                ),
+
+                // --- Action Buttons ---
+                !isUploading && React.createElement(
+                  "div",
+                  { className: "mt-4 flex gap-3" },
+                  React.createElement(
+                    "button",
+                    {
+                      onClick: saveBatchSops,
+                      className: "px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors flex items-center"
+                    },
+                    React.createElement(Icon, { name: "Upload", size: 16, className: "mr-2" }),
+                    `Upload ${sopItems.length} SOP`
+                  ),
+                  React.createElement(
+                    "button",
+                    {
+                      onClick: resetBatchForm,
+                      className: "px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 font-medium rounded-lg transition-colors"
+                    },
+                    "Reset"
+                  )
+                )
+              ),
+
+              // --- MANAGE SOP TABLE (tetap sama) ---
               React.createElement(
                 "div",
                 { className: "bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" },
