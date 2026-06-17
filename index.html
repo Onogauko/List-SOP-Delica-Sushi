@@ -759,6 +759,19 @@
 
       const isAdmin = session?.user?.email ? ADMIN_EMAILS.includes(session.user.email) : false;
 
+      // --- HITUNG JUMLAH SOP PER KATEGORI ---
+      const categoryCounts = useMemo(() => {
+        const counts = {};
+        CATEGORIES.forEach(cat => {
+          if (cat === 'All') {
+            counts[cat] = allSops.length;
+          } else {
+            counts[cat] = allSops.filter(sop => sop.category === cat).length;
+          }
+        });
+        return counts;
+      }, [allSops]);
+
       const filteredSops = useMemo(() => {
         let result = allSops;
 
@@ -958,8 +971,9 @@
                 { className: "px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" },
                 "Kategori SOP"
               ),
-              CATEGORIES.map(category => 
-                React.createElement(
+              CATEGORIES.map(category => {
+                const count = categoryCounts[category] || 0;
+                return React.createElement(
                   "button",
                   {
                     key: category,
@@ -969,12 +983,25 @@
                       setSelectedSop(null);
                       setShowAdmin(false);
                     },
-                    className: `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === category && !showAdmin ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
+                    className: `w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === category && !showAdmin ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
                   },
-                  category === 'All' ? React.createElement(Icon, { name: "LayoutGrid", className: "mr-3", size: 18 }) : React.createElement(Icon, { name: "FileText", className: "mr-3", size: 18 }),
-                  category
-                )
-              )
+                  React.createElement(
+                    "span",
+                    { className: "flex items-center" },
+                    category === 'All' ? React.createElement(Icon, { name: "LayoutGrid", className: "mr-3", size: 18 }) : React.createElement(Icon, { name: "FileText", className: "mr-3", size: 18 }),
+                    category
+                  ),
+                  React.createElement(
+                    "span",
+                    { className: `text-xs font-medium px-2 py-0.5 rounded-full ${
+                      count > 0 
+                        ? 'bg-blue-100 text-blue-600' 
+                        : 'bg-gray-100 text-gray-400'
+                    }` },
+                    count
+                  )
+                );
+              })
             ),
             isAdmin && React.createElement(
               "nav",
