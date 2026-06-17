@@ -131,8 +131,11 @@
       );
     };
 
-    // --- KOMPONEN PDF VIEWER ---
+    // --- KOMPONEN PDF VIEWER (DIPERBAIKI) ---
     const InternalPdfViewer = ({ sop, onBack, isBookmarked, toggleBookmark }) => {
+      // Gunakan Google PDF Viewer untuk menampilkan PDF di dalam iframe
+      const pdfViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(sop.pdf_url)}&embedded=true`;
+      
       return React.createElement(
         "div",
         { className: "flex flex-col h-full bg-gray-200 rounded-xl overflow-hidden shadow-inner border border-gray-300" },
@@ -171,9 +174,10 @@
           "div",
           { className: "flex-1 bg-gray-100" },
           React.createElement("iframe", {
-            src: sop.pdf_url,
+            src: pdfViewerUrl,
             title: sop.title,
-            className: "w-full h-full border-0"
+            className: "w-full h-full border-0",
+            allow: "autoplay"
           })
         )
       );
@@ -398,7 +402,7 @@
         await supabaseClient.auth.signOut();
       };
 
-      // --- HANDLE OPEN SOP (DIPERBAIKI) ---
+      // --- HANDLE OPEN SOP ---
       const handleOpenSop = (sop) => {
         setSelectedSop(sop);
       };
