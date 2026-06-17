@@ -689,11 +689,17 @@
                 { className: "px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" },
                 "My Workspace"
               ),
+              // --- TOMBOL FAVORIT (TAMBAHKAN setShowAdmin(false)) ---
               React.createElement(
                 "button",
                 {
-                  onClick: () => { setActiveTab('Bookmarks'); setIsSidebarOpen(false); setSelectedSop(null); },
-                  className: `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'Bookmarks' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
+                  onClick: () => { 
+                    setActiveTab('Bookmarks'); 
+                    setIsSidebarOpen(false); 
+                    setSelectedSop(null);
+                    setShowAdmin(false);
+                  },
+                  className: `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'Bookmarks' && !showAdmin ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
                 },
                 React.createElement(Icon, { name: "Bookmark", className: "mr-3", size: 18 }),
                 " Favorit",
@@ -703,11 +709,17 @@
                   bookmarks.length
                 )
               ),
+              // --- TOMBOL HISTORY (TAMBAHKAN setShowAdmin(false)) ---
               React.createElement(
                 "button",
                 {
-                  onClick: () => { setActiveTab('History'); setIsSidebarOpen(false); setSelectedSop(null); },
-                  className: `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'History' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
+                  onClick: () => { 
+                    setActiveTab('History'); 
+                    setIsSidebarOpen(false); 
+                    setSelectedSop(null);
+                    setShowAdmin(false);
+                  },
+                  className: `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'History' && !showAdmin ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
                 },
                 React.createElement(Icon, { name: "History", className: "mr-3", size: 18 }),
                 " Terakhir Dibuka"
@@ -721,19 +733,26 @@
                 { className: "px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" },
                 "Kategori SOP"
               ),
+              // --- KATEGORI (TAMBAHKAN setShowAdmin(false)) ---
               CATEGORIES.map(category => 
                 React.createElement(
                   "button",
                   {
                     key: category,
-                    onClick: () => { setActiveTab(category); setIsSidebarOpen(false); setSelectedSop(null); },
-                    className: `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === category ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
+                    onClick: () => { 
+                      setActiveTab(category); 
+                      setIsSidebarOpen(false); 
+                      setSelectedSop(null);
+                      setShowAdmin(false);
+                    },
+                    className: `w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === category && !showAdmin ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`
                   },
                   category === 'All' ? React.createElement(Icon, { name: "LayoutGrid", className: "mr-3", size: 18 }) : React.createElement(Icon, { name: "FileText", className: "mr-3", size: 18 }),
                   category
                 )
               )
             ),
+            // --- ADMIN MENU (TETAP SAMA) ---
             isAdmin && React.createElement(
               "nav",
               { className: "px-3 space-y-1 mt-6 border-t border-gray-200 pt-4" },
@@ -1192,7 +1211,7 @@
                 )
               ),
 
-              // --- MANAGE SOP TABLE (tetap sama) ---
+              // --- MANAGE SOP TABLE ---
               React.createElement(
                 "div",
                 { className: "bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" },
