@@ -17,6 +17,9 @@
   
   <!-- Supabase -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
   <div id="root"></div>
@@ -127,6 +130,27 @@
           React.createElement("polygon", { points: "12 2 2 7 12 12 22 7 12 2" }),
           React.createElement("polyline", { points: "2 17 12 22 22 17" }),
           React.createElement("polyline", { points: "2 12 12 17 22 12" })
+        ),
+        Download: React.createElement(React.Fragment, null,
+          React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
+          React.createElement("polyline", { points: "7 10 12 15 17 10" }),
+          React.createElement("line", { x1: "12", x2: "12", y1: "15", y2: "3" })
+        ),
+        ZoomIn: React.createElement(React.Fragment, null,
+          React.createElement("circle", { cx: "11", cy: "11", r: "8" }),
+          React.createElement("line", { x1: "21", x2: "16.65", y1: "21", y2: "16.65" }),
+          React.createElement("line", { x1: "11", x2: "11", y1: "8", y2: "14" }),
+          React.createElement("line", { x1: "8", x2: "14", y1: "11", y2: "11" })
+        ),
+        ZoomOut: React.createElement(React.Fragment, null,
+          React.createElement("circle", { cx: "11", cy: "11", r: "8" }),
+          React.createElement("line", { x1: "21", x2: "16.65", y1: "21", y2: "16.65" }),
+          React.createElement("line", { x1: "8", x2: "14", y1: "11", y2: "11" })
+        ),
+        AlertCircle: React.createElement(React.Fragment, null,
+          React.createElement("circle", { cx: "12", cy: "12", r: "10" }),
+          React.createElement("line", { x1: "12", x2: "12", y1: "8", y2: "12" }),
+          React.createElement("line", { x1: "12", x2: "12", y1: "16", y2: "16" })
         )
       };
       return React.createElement(
@@ -147,16 +171,125 @@
       );
     };
 
-    // --- KOMPONEN PDF VIEWER ---
+    // --- KOMPONEN PDF VIEWER (DENGAN PDF.JS) ---
     const InternalPdfViewer = ({ sop, onBack, isBookmarked, toggleBookmark }) => {
-      const pdfViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(sop.pdf_url)}&embedded=true`;
-      
+      const [numPages, setNumPages] = useState(null);
+      const [pageNumber, setPageNumber] = useState(1);
+      const [scale, setScale] = useState(1);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const canvasRef = useRef(null);
+      const pdfRef = useRef(null);
+
+      // Set worker source untuk PDF.js
+      useEffect(() => {
+        if (typeof window.pdfjsLib !== 'undefined') {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+      }, []);
+
+      // Load PDF
+      useEffect(() => {
+        const loadPdf = async () => {
+          if (!sop?.pdf_url) return;
+          
+          setLoading(true);
+          setError(null);
+          
+          try {
+            if (typeof window.pdfjsLib === 'undefined') {
+              throw new Error('PDF.js library not loaded');
+            }
+
+            // Load PDF
+            const loadingTask = window.pdfjsLib.getDocument(sop.pdf_url);
+            const pdf = await loadingTask.promise;
+            pdfRef.current = pdf;
+            setNumPages(pdf.numPages);
+            
+            // Render first page
+            renderPage(pdf, 1, scale);
+          } catch (err) {
+            console.error('Error loading PDF:', err);
+            setError('Gagal memuat PDF. File mungkin terlalu besar atau rusak.');
+            setLoading(false);
+          }
+        };
+
+        loadPdf();
+      }, [sop, scale]);
+
+      const renderPage = async (pdf, pageNum, currentScale) => {
+        try {
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale: currentScale });
+          
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          
+          const context = canvas.getContext('2d');
+          
+          // Set canvas size
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          
+          // Render PDF page
+          const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+          };
+          
+          await page.render(renderContext).promise;
+          setLoading(false);
+        } catch (err) {
+          console.error('Error rendering page:', err);
+          setError('Gagal merender halaman PDF');
+          setLoading(false);
+        }
+      };
+
+      // Change page
+      const goToPrevPage = () => {
+        if (pageNumber <= 1) return;
+        setPageNumber(pageNumber - 1);
+        setLoading(true);
+        renderPage(pdfRef.current, pageNumber - 1, scale);
+      };
+
+      const goToNextPage = () => {
+        if (pageNumber >= numPages) return;
+        setPageNumber(pageNumber + 1);
+        setLoading(true);
+        renderPage(pdfRef.current, pageNumber + 1, scale);
+      };
+
+      const handleZoomIn = () => {
+        const newScale = Math.min(scale + 0.25, 3);
+        setScale(newScale);
+        if (pdfRef.current) {
+          renderPage(pdfRef.current, pageNumber, newScale);
+        }
+      };
+
+      const handleZoomOut = () => {
+        const newScale = Math.max(scale - 0.25, 0.5);
+        setScale(newScale);
+        if (pdfRef.current) {
+          renderPage(pdfRef.current, pageNumber, newScale);
+        }
+      };
+
+      const handleDownload = () => {
+        window.open(sop.pdf_url, '_blank');
+      };
+
       return React.createElement(
         "div",
         { className: "flex flex-col h-full bg-gray-200 rounded-xl overflow-hidden shadow-inner border border-gray-300" },
+        // --- HEADER ---
         React.createElement(
           "div",
-          { className: "bg-white border-b px-4 py-3 flex items-center justify-between z-10 shadow-sm shrink-0" },
+          { className: "bg-white border-b px-4 py-3 flex items-center justify-between z-10 shadow-sm shrink-0 flex-wrap gap-2" },
           React.createElement(
             "button",
             {
@@ -168,32 +301,126 @@
           ),
           React.createElement(
             "div",
-            { className: "font-bold text-gray-800 truncate px-4 flex-1 text-center" },
+            { className: "font-bold text-gray-800 truncate px-2 flex-1 text-center text-sm sm:text-base" },
             (sop.code || sop.sop_code) + " - " + sop.title
           ),
           React.createElement(
             "div",
-            { className: "flex items-center gap-1 sm:gap-3" },
+            { className: "flex items-center gap-1 sm:gap-2" },
+            // Zoom controls
+            React.createElement(
+              "button",
+              {
+                onClick: handleZoomOut,
+                className: "p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600",
+                title: "Perkecil"
+              },
+              React.createElement(Icon, { name: "ZoomOut", size: 18 })
+            ),
+            React.createElement(
+              "span",
+              { className: "text-xs text-gray-600 min-w-[40px] text-center" },
+              Math.round(scale * 100) + "%"
+            ),
+            React.createElement(
+              "button",
+              {
+                onClick: handleZoomIn,
+                className: "p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-600",
+                title: "Perbesar"
+              },
+              React.createElement(Icon, { name: "ZoomIn", size: 18 })
+            ),
+            // Download button
+            React.createElement(
+              "button",
+              {
+                onClick: handleDownload,
+                className: "p-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 transition-colors text-blue-600",
+                title: "Download PDF"
+              },
+              React.createElement(Icon, { name: "Download", size: 18 })
+            ),
+            // Bookmark button
             React.createElement(
               "button",
               {
                 onClick: toggleBookmark,
-                className: `p-2 rounded-lg transition-colors ${isBookmarked ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`,
+                className: `p-1.5 rounded-lg transition-colors ${isBookmarked ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`,
                 title: isBookmarked ? "Hapus dari Bookmark" : "Tambah ke Bookmark"
               },
-              React.createElement(Icon, { name: "Bookmark", size: 20, fill: isBookmarked ? "currentColor" : "none" })
+              React.createElement(Icon, { name: "Bookmark", size: 18, fill: isBookmarked ? "currentColor" : "none" })
             )
           )
         ),
+        // --- PDF CONTENT ---
         React.createElement(
           "div",
-          { className: "flex-1 bg-gray-100" },
-          React.createElement("iframe", {
-            src: pdfViewerUrl,
-            title: sop.title,
-            className: "w-full h-full border-0",
-            allow: "autoplay"
-          })
+          { className: "flex-1 bg-gray-100 overflow-auto relative" },
+          error && React.createElement(
+            "div",
+            { className: "absolute inset-0 flex flex-col items-center justify-center p-4 text-center" },
+            React.createElement(Icon, { name: "AlertCircle", size: 48, className: "text-red-500 mb-3" }),
+            React.createElement("p", { className: "text-red-600 font-medium" }, error),
+            React.createElement(
+              "button",
+              {
+                onClick: handleDownload,
+                className: "mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              },
+              "Download PDF"
+            )
+          ),
+          loading && !error && React.createElement(
+            "div",
+            { className: "absolute inset-0 flex items-center justify-center" },
+            React.createElement(
+              "div",
+              { className: "text-center" },
+              React.createElement(
+                "div",
+                { className: "inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2" }
+              ),
+              React.createElement("p", { className: "text-gray-500 text-sm" }, "Memuat PDF...")
+            )
+          ),
+          React.createElement(
+            "div",
+            { className: "flex justify-center p-2 h-full" },
+            React.createElement("canvas", {
+              ref: canvasRef,
+              className: `max-w-full ${loading ? 'hidden' : ''}`,
+              style: { height: 'auto' }
+            })
+          )
+        ),
+        // --- FOOTER (Page Navigation) ---
+        numPages > 1 && React.createElement(
+          "div",
+          { className: "bg-white border-t px-4 py-2 flex items-center justify-between shrink-0" },
+          React.createElement(
+            "button",
+            {
+              onClick: goToPrevPage,
+              disabled: pageNumber <= 1,
+              className: `px-3 py-1 rounded-lg text-sm font-medium transition-colors ${pageNumber <= 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`
+            },
+            "← Prev"
+          ),
+          React.createElement(
+            "span",
+            { className: "text-sm text-gray-600" },
+            `Halaman ${pageNumber} dari ${numPages}`
+          ),
+          React.createElement(
+            "button",
+            {
+              onClick: goToNextPage,
+              disabled: pageNumber >= numPages,
+              className: `px-3 py-1 rounded-lg text-sm font-medium transition-colors ${pageNumber >= numPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`
+            },
+            "Next →"
+          )
         )
       );
     };
@@ -689,7 +916,6 @@
                 { className: "px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" },
                 "My Workspace"
               ),
-              // --- TOMBOL FAVORIT (TAMBAHKAN setShowAdmin(false)) ---
               React.createElement(
                 "button",
                 {
@@ -709,7 +935,6 @@
                   bookmarks.length
                 )
               ),
-              // --- TOMBOL HISTORY (TAMBAHKAN setShowAdmin(false)) ---
               React.createElement(
                 "button",
                 {
@@ -733,7 +958,6 @@
                 { className: "px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" },
                 "Kategori SOP"
               ),
-              // --- KATEGORI (TAMBAHKAN setShowAdmin(false)) ---
               CATEGORIES.map(category => 
                 React.createElement(
                   "button",
@@ -752,7 +976,6 @@
                 )
               )
             ),
-            // --- ADMIN MENU (TETAP SAMA) ---
             isAdmin && React.createElement(
               "nav",
               { className: "px-3 space-y-1 mt-6 border-t border-gray-200 pt-4" },
