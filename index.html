@@ -171,7 +171,7 @@
       );
     };
 
-    // --- KOMPONEN PDF VIEWER (DENGAN PDF.JS) ---
+    // --- KOMPONEN PDF VIEWER (DENGAN PDF.JS - TAMPILAN TAJAM) ---
     const InternalPdfViewer = ({ sop, onBack, isBookmarked, toggleBookmark }) => {
       const [numPages, setNumPages] = useState(null);
       const [pageNumber, setPageNumber] = useState(1);
@@ -217,11 +217,15 @@
         };
 
         loadPdf();
-      }, [sop, scale]);
+      }, [sop]);
 
+      // Render page dengan DPI tinggi agar tampilan tajam
       const renderPage = async (pdf, pageNum, currentScale) => {
         try {
           const page = await pdf.getPage(pageNum);
+          
+          // Gunakan devicePixelRatio untuk tampilan tajam
+          const pixelRatio = window.devicePixelRatio || 1;
           const viewport = page.getViewport({ scale: currentScale });
           
           const canvas = canvasRef.current;
@@ -229,11 +233,15 @@
           
           const context = canvas.getContext('2d');
           
-          // Set canvas size
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
+          // Set canvas size dengan pixel ratio (untuk tampilan tajam)
+          canvas.width = viewport.width * pixelRatio;
+          canvas.height = viewport.height * pixelRatio;
+          canvas.style.width = viewport.width + 'px';
+          canvas.style.height = viewport.height + 'px';
           
-          // Render PDF page
+          // Scale context untuk anti-aliasing
+          context.scale(pixelRatio, pixelRatio);
+          
           const renderContext = {
             canvasContext: context,
             viewport: viewport
@@ -247,6 +255,13 @@
           setLoading(false);
         }
       };
+
+      // Effect untuk re-render saat scale berubah
+      useEffect(() => {
+        if (pdfRef.current && !loading) {
+          renderPage(pdfRef.current, pageNumber, scale);
+        }
+      }, [scale]);
 
       // Change page
       const goToPrevPage = () => {
@@ -266,17 +281,11 @@
       const handleZoomIn = () => {
         const newScale = Math.min(scale + 0.25, 3);
         setScale(newScale);
-        if (pdfRef.current) {
-          renderPage(pdfRef.current, pageNumber, newScale);
-        }
       };
 
       const handleZoomOut = () => {
         const newScale = Math.max(scale - 0.25, 0.5);
         setScale(newScale);
-        if (pdfRef.current) {
-          renderPage(pdfRef.current, pageNumber, newScale);
-        }
       };
 
       const handleDownload = () => {
