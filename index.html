@@ -171,7 +171,7 @@
       );
     };
 
-    // --- KOMPONEN PDF VIEWER (DENGAN PDF.JS - TAMPILAN TAJAM) ---
+    // --- KOMPONEN PDF VIEWER (DENGAN PDF.JS - RESPONSIVE MOBILE) ---
     const InternalPdfViewer = ({ sop, onBack, isBookmarked, toggleBookmark }) => {
       const [numPages, setNumPages] = useState(null);
       const [pageNumber, setPageNumber] = useState(1);
@@ -180,6 +180,7 @@
       const [error, setError] = useState(null);
       const canvasRef = useRef(null);
       const pdfRef = useRef(null);
+      const containerRef = useRef(null);
 
       // Set worker source untuk PDF.js
       useEffect(() => {
@@ -187,6 +188,16 @@
           window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         }
       }, []);
+
+      // Hitung skala awal berdasarkan lebar container
+      const calculateInitialScale = (viewportWidth) => {
+        const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
+        const availableWidth = Math.min(containerWidth - 40, window.innerWidth - 40);
+        if (viewportWidth > availableWidth) {
+          return (availableWidth / viewportWidth) * 0.95;
+        }
+        return 1;
+      };
 
       // Load PDF
       useEffect(() => {
@@ -207,8 +218,14 @@
             pdfRef.current = pdf;
             setNumPages(pdf.numPages);
             
+            // Hitung skala awal
+            const page = await pdf.getPage(1);
+            const viewport = page.getViewport({ scale: 1 });
+            const initialScale = calculateInitialScale(viewport.width);
+            setScale(initialScale);
+            
             // Render first page
-            renderPage(pdf, 1, scale);
+            renderPage(pdf, 1, initialScale);
           } catch (err) {
             console.error('Error loading PDF:', err);
             setError('Gagal memuat PDF. File mungkin terlalu besar atau rusak.');
@@ -219,7 +236,25 @@
         loadPdf();
       }, [sop]);
 
-      // Render page dengan DPI tinggi agar tampilan tajam
+      // Handle resize untuk responsif
+      useEffect(() => {
+        const handleResize = () => {
+          if (pdfRef.current && !loading) {
+            const page = pdfRef.current.getPage(pageNumber);
+            page.then(p => {
+              const viewport = p.getViewport({ scale: 1 });
+              const newScale = calculateInitialScale(viewport.width);
+              setScale(newScale);
+              renderPage(pdfRef.current, pageNumber, newScale);
+            });
+          }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+      }, [pageNumber, loading]);
+
+      // Render page dengan DPI tinggi dan responsif
       const renderPage = async (pdf, pageNum, currentScale) => {
         try {
           const page = await pdf.getPage(pageNum);
@@ -365,7 +400,10 @@
         // --- PDF CONTENT ---
         React.createElement(
           "div",
-          { className: "flex-1 bg-gray-100 overflow-auto relative" },
+          { 
+            ref: containerRef,
+            className: "flex-1 bg-gray-100 overflow-auto relative flex items-center justify-center"
+          },
           error && React.createElement(
             "div",
             { className: "absolute inset-0 flex flex-col items-center justify-center p-4 text-center" },
@@ -395,11 +433,11 @@
           ),
           React.createElement(
             "div",
-            { className: "flex justify-center p-2 h-full" },
+            { className: "flex justify-center p-2 w-full h-full items-center" },
             React.createElement("canvas", {
               ref: canvasRef,
-              className: `max-w-full ${loading ? 'hidden' : ''}`,
-              style: { height: 'auto' }
+              className: `max-w-full max-h-full object-contain ${loading ? 'hidden' : ''}`,
+              style: { height: 'auto', width: 'auto', maxWidth: '100%', maxHeight: '100%' }
             })
           )
         ),
