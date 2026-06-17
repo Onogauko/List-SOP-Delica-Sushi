@@ -35,6 +35,11 @@
 
     const CATEGORIES = ['All', 'Delica', 'Sushi', 'Bakery', 'Work Instruction', 'Others'];
 
+    // --- ADMIN EMAILS ---
+    const ADMIN_EMAILS = [
+      "jentawijayazebua@gmail.com"
+    ];
+
     // --- KOMPONEN IKON PENGGANTI LUCIDE ---
     const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
       const icons = {
@@ -48,7 +53,12 @@
         ArrowLeft: <><line x1="19" x2="5" y1="12" y2="12"/><polyline points="12 19 5 12 12 5"/></>,
         BookOpen: <><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>,
         UserCircle: <><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></>,
-        LayoutGrid: <><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></>
+        LayoutGrid: <><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></>,
+        Shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></>,
+        Upload: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></>,
+        Edit: <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+        Trash: <><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></>,
+        X: <><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></>
       };
       return (
         <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -109,6 +119,14 @@
       const [bookmarks, setBookmarks] = useState([]); 
       const [history, setHistory] = useState([]); 
 
+      // --- NEW STATE FOR ADMIN ---
+      const [showAdmin, setShowAdmin] = useState(false);
+      const [uploadFile, setUploadFile] = useState(null);
+      const [sopCode, setSopCode] = useState('');
+      const [title, setTitle] = useState('');
+      const [category, setCategory] = useState('Delica');
+      const [editingSop, setEditingSop] = useState(null);
+
       useEffect(() => {
         supabaseClient.auth.getSession().then(({ data: { session } }) => {
           setSession(session);
@@ -137,6 +155,113 @@
         if (data) setAllSops(data);
       };
 
+      // --- UPLOAD PDF FUNCTION ---
+      const uploadPdf = async (file) => {
+        const fileName = Date.now() + "_" + file.name;
+
+        const { error } = await supabaseClient
+          .storage
+          .from('sop-files')
+          .upload(fileName, file);
+
+        if (error) {
+          alert(error.message);
+          return null;
+        }
+
+        const { data } = supabaseClient
+          .storage
+          .from('sop-files')
+          .getPublicUrl(fileName);
+
+        return data.publicUrl;
+      };
+
+      // --- SAVE SOP FUNCTION ---
+      const saveSop = async () => {
+        if (!uploadFile) {
+          alert('Silakan pilih file PDF terlebih dahulu');
+          return;
+        }
+
+        const pdfUrl = await uploadPdf(uploadFile);
+        if (!pdfUrl) return;
+
+        const { error } = await supabaseClient
+          .from('sop_documents')
+          .insert([
+            {
+              sop_code: sopCode,
+              title: title,
+              category: category,
+              pdf_url: pdfUrl
+            }
+          ]);
+
+        if (error) {
+          alert('Gagal menyimpan SOP: ' + error.message);
+          return;
+        }
+
+        alert('SOP berhasil ditambahkan!');
+        setSopCode('');
+        setTitle('');
+        setCategory('Delica');
+        setUploadFile(null);
+        document.getElementById('fileInput').value = '';
+        fetchSops();
+      };
+
+      // --- UPDATE SOP FUNCTION ---
+      const updateSop = async () => {
+        const { error } = await supabaseClient
+          .from('sop_documents')
+          .update({
+            title: title,
+            category: category
+          })
+          .eq('id', editingSop.id);
+
+        if (error) {
+          alert('Gagal mengupdate SOP: ' + error.message);
+          return;
+        }
+
+        alert('SOP berhasil diupdate!');
+        setEditingSop(null);
+        setSopCode('');
+        setTitle('');
+        setCategory('Delica');
+        fetchSops();
+      };
+
+      // --- DELETE SOP FUNCTION ---
+      const deleteSop = async (id) => {
+        if (!confirm('Apakah Anda yakin ingin menghapus SOP ini?')) return;
+
+        const { error } = await supabaseClient
+          .from('sop_documents')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          alert('Gagal menghapus SOP: ' + error.message);
+          return;
+        }
+
+        alert('SOP berhasil dihapus!');
+        fetchSops();
+      };
+
+      // --- EDIT SOP FUNCTION ---
+      const editSop = (sop) => {
+        setEditingSop(sop);
+        setSopCode(sop.sop_code || sop.code || '');
+        setTitle(sop.title);
+        setCategory(sop.category);
+        setShowAdmin(true);
+      };
+
       const handleLogin = async (e) => {
         e.preventDefault();
         const email = e.target.email.value;
@@ -154,6 +279,8 @@
       };
 
       const toggleBookmark = () => {};
+
+      const isAdmin = ADMIN_EMAILS.includes(session?.user?.email);
 
       const filteredSops = useMemo(() => {
         let result = allSops;
@@ -259,6 +386,19 @@
                   </button>
                 ))}
               </nav>
+
+              {/* --- ADMIN MENU --- */}
+              {isAdmin && (
+                <nav className="px-3 space-y-1 mt-6 border-t border-gray-200 pt-4">
+                  <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Admin Panel</p>
+                  <button 
+                    onClick={() => { setShowAdmin(!showAdmin); setIsSidebarOpen(false); setSelectedSop(null); setEditingSop(null); }} 
+                    className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${showAdmin ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    <Icon name="Shield" className="mr-3" size={18} /> Admin Dashboard
+                  </button>
+                </nav>
+              )}
             </div>
 
             <div className="p-4 border-t border-gray-200 bg-gray-50">
@@ -328,6 +468,159 @@
                    isBookmarked={bookmarks.includes(selectedSop.id)}
                    toggleBookmark={() => toggleBookmark(selectedSop.id)}
                  />
+              ) : showAdmin && isAdmin ? (
+                // --- ADMIN DASHBOARD ---
+                <div className="flex-1 overflow-y-auto pb-10">
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                      <Icon name="Shield" size={28} className="mr-3 text-blue-600" />
+                      Admin Dashboard
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">Kelola dokumen SOP secara terpusat</p>
+                  </div>
+
+                  {/* Upload Form */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                      <Icon name="Upload" size={20} className="mr-2 text-blue-600" />
+                      {editingSop ? 'Edit SOP' : 'Upload SOP Baru'}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">SOP Code</label>
+                        <input 
+                          placeholder="Contoh: SOP-001" 
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={sopCode}
+                          onChange={(e) => setSopCode(e.target.value)}
+                          disabled={!!editingSop}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <input 
+                          placeholder="Judul SOP" 
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select 
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={category}
+                          onChange={(e) => setCategory(e.target.value)}
+                        >
+                          <option value="Delica">Delica</option>
+                          <option value="Sushi">Sushi</option>
+                          <option value="Bakery">Bakery</option>
+                          <option value="Work Instruction">Work Instruction</option>
+                          <option value="Others">Others</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Upload PDF</label>
+                        <input 
+                          id="fileInput"
+                          type="file" 
+                          accept=".pdf"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                          onChange={(e) => setUploadFile(e.target.files[0])}
+                          disabled={!!editingSop}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 flex gap-3">
+                      <button 
+                        onClick={editingSop ? updateSop : saveSop}
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                      >
+                        {editingSop ? 'Update SOP' : 'Simpan SOP'}
+                      </button>
+                      {editingSop && (
+                        <button 
+                          onClick={() => {
+                            setEditingSop(null);
+                            setSopCode('');
+                            setTitle('');
+                            setCategory('Delica');
+                            setUploadFile(null);
+                            document.getElementById('fileInput').value = '';
+                          }}
+                          className="px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 font-medium rounded-lg transition-colors"
+                        >
+                          Batal
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Manage SOP Table */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                      <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                        <Icon name="FileText" size={20} className="mr-2 text-blue-600" />
+                        Kelola SOP
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {allSops.map(sop => (
+                            <tr key={sop.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-6 py-4 text-sm font-medium text-gray-900">{sop.sop_code || sop.code}</td>
+                              <td className="px-6 py-4 text-sm text-gray-700">{sop.title}</td>
+                              <td className="px-6 py-4 text-sm text-gray-700">
+                                <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                                  sop.category === 'Delica' ? 'bg-orange-100 text-orange-700' :
+                                  sop.category === 'Sushi' ? 'bg-red-100 text-red-700' :
+                                  sop.category === 'Bakery' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {sop.category}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button 
+                                    onClick={() => editSop(sop)}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Edit"
+                                  >
+                                    <Icon name="Edit" size={18} />
+                                  </button>
+                                  <button 
+                                    onClick={() => deleteSop(sop.id)}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete"
+                                  >
+                                    <Icon name="Trash" size={18} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {allSops.length === 0 && (
+                            <tr>
+                              <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
+                                Belum ada SOP yang tersedia
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="flex-1 overflow-y-auto pb-10">
                   <div className="flex items-center justify-between mb-6">
