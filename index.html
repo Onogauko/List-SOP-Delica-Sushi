@@ -32,7 +32,7 @@
 
     const CATEGORIES = ['All', 'Delica', 'Sushi', 'Bakery', 'Work Instruction', 'Others'];
 
-    // --- ADMIN EMAILS ---
+    // --- ADMIN EMAILS (Daftar email yang punya akses admin) ---
     const ADMIN_EMAILS = [
       "jentawijayazebua@gmail.com"
     ];
@@ -111,6 +111,10 @@
         X: React.createElement(React.Fragment, null,
           React.createElement("line", { x1: "18", x2: "6", y1: "6", y2: "18" }),
           React.createElement("line", { x1: "6", x2: "18", y1: "6", y2: "18" })
+        ),
+        Eye: React.createElement(React.Fragment, null,
+          React.createElement("path", { d: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" }),
+          React.createElement("circle", { cx: "12", cy: "12", r: "3" })
         )
       };
       return React.createElement(
@@ -131,9 +135,8 @@
       );
     };
 
-    // --- KOMPONEN PDF VIEWER (DIPERBAIKI) ---
+    // --- KOMPONEN PDF VIEWER ---
     const InternalPdfViewer = ({ sop, onBack, isBookmarked, toggleBookmark }) => {
-      // Gunakan Google PDF Viewer untuk menampilkan PDF di dalam iframe
       const pdfViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(sop.pdf_url)}&embedded=true`;
       
       return React.createElement(
@@ -407,6 +410,7 @@
         setSelectedSop(sop);
       };
 
+      // --- CEK APAKAH USER ADALAH ADMIN ---
       const isAdmin = session?.user?.email ? ADMIN_EMAILS.includes(session.user.email) : false;
 
       const filteredSops = useMemo(() => {
@@ -484,8 +488,7 @@
                       name: "email",
                       type: "email",
                       required: true,
-                      placeholder: "jentawijayazebua@gmail.com",
-                      defaultValue: "jentawijayazebua@gmail.com",
+                      placeholder: "Masukkan email Anda",
                       className: "appearance-none block w-full px-10 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     })
                   )
@@ -612,6 +615,7 @@
                 )
               )
             ),
+            // --- ADMIN MENU (HANYA UNTUK ADMIN) ---
             isAdmin && React.createElement(
               "nav",
               { className: "px-3 space-y-1 mt-6 border-t border-gray-200 pt-4" },
@@ -647,13 +651,17 @@
                 { className: "ml-3 truncate" },
                 React.createElement(
                   "p",
-                  { className: "text-sm font-medium text-gray-900 truncate" },
-                  "SOP User"
-                ),
-                React.createElement(
-                  "p",
-                  { className: "text-xs text-gray-500 truncate" },
-                  session?.user?.email
+                  { className: "text-sm font-medium text-gray-900 truncate flex items-center" },
+                  session?.user?.email,
+                  isAdmin ? React.createElement(
+                    "span",
+                    { className: "ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full" },
+                    "Admin"
+                  ) : React.createElement(
+                    "span",
+                    { className: "ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full" },
+                    "Viewer"
+                  )
                 )
               )
             ),
