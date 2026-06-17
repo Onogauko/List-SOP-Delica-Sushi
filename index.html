@@ -285,7 +285,7 @@
             .from('sop_documents')
             .insert([
               {
-                sop_code: sopCode,
+                code: sopCode,
                 title: title,
                 category: category,
                 pdf_url: pdfUrl
@@ -359,7 +359,7 @@
       // --- EDIT SOP FUNCTION ---
       const editSop = (sop) => {
         setEditingSop(sop);
-        setSopCode(sop.sop_code || sop.code || '');
+        setSopCode(sop.code || sop.sop_code || '');
         setTitle(sop.title);
         setCategory(sop.category);
         setShowAdmin(true);
@@ -886,7 +886,7 @@
                         React.createElement(
                           "tr",
                           { key: sop.id, className: "hover:bg-gray-50 transition-colors" },
-                          React.createElement("td", { className: "px-6 py-4 text-sm font-medium text-gray-900" }, sop.sop_code || sop.code),
+                          React.createElement("td", { className: "px-6 py-4 text-sm font-medium text-gray-900" }, sop.code || sop.sop_code),
                           React.createElement("td", { className: "px-6 py-4 text-sm text-gray-700" }, sop.title),
                           React.createElement(
                             "td",
